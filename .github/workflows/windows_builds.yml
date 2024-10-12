@@ -29,14 +29,14 @@ jobs:
             tests: true
             # Skip debug symbols, they're way too big with MSVC.
             sconsflags: debug_symbols=no vsproj=yes vsproj_gen_only=no windows_subsystem=console
-            bin: "./bin/godot.windows.editor.x86_64.exe"
-            compiler: msvc
+            bin: ./bin/blazium.windows.editor.x86_64.exe
+            artifact: true
 
           - name: Editor w/ Mono (target=editor)
             cache-name: windows-editor-mono
             target: editor
             sconsflags: module_mono_enabled=yes
-            bin: ./bin/godot.windows.editor.x86_64.mono.exe
+            bin: ./bin/blazium.windows.editor.x86_64.mono.exe
             build-mono: true
             tests: false # Disabled due freeze caused by mix Mono build and CI
             doc-test: true
@@ -49,25 +49,15 @@ jobs:
             target: editor
             tests: true
             sconsflags: debug_symbols=no windows_subsystem=console use_llvm=yes
-            bin: ./bin/godot.windows.editor.x86_64.exe
-            compiler: clang
+            bin: ./bin/blazium.windows.editor.x86_64.llvm.exe
 
-          - name: Template (target=template_release)
+          - name: Template (target=template_release, tests=yes)
             cache-name: windows-template
             target: template_release
             tests: true
-            sconsflags: debug_symbols=no tests=yes
-            bin: "./bin/godot.windows.template_release.x86_64.console.exe"
-            compiler: msvc
-
-          - name: Template w/ GCC (target=template_release, tests=yes, use_mingw=yes)
-            cache-name: windows-template-gcc
-            # MinGW takes MUCH longer to compile; save time by only targeting Template.
-            target: template_release
-            tests: true
-            sconsflags: debug_symbols=no use_mingw=yes
-            bin: ./bin/godot.windows.template_release.x86_64.console.exe
-            compiler: gcc
+            sconsflags: debug_symbols=no
+            bin: ./bin/blazium.windows.template_release.x86_64.console.exe
+            artifact: true
 
     steps:
       - uses: actions/checkout@v4
@@ -90,20 +80,15 @@ jobs:
         uses: dsaltares/fetch-gh-release-asset@1.1.2
         with:
           repo: godotengine/godot-angle-static
-          version: tags/chromium/6601.2
-          file: godot-angle-static-x86_64-${{ matrix.compiler == 'gcc' && 'gcc' || 'msvc' }}-release.zip
+          version: tags/chromium/6029
+          file: Windows.6029-1.MSVC_17.x86_64.x86_32.zip
           target: angle/angle.zip
 
       - name: Extract pre-built ANGLE static libraries
         run: Expand-Archive -Force angle/angle.zip ${{github.workspace}}/
 
       - name: Setup MSVC problem matcher
-        if: matrix.compiler == 'msvc'
         uses: ammaraskar/msvc-problem-matcher@master
-
-      - name: Setup GCC problem matcher
-        if: matrix.compiler != 'msvc'
-        uses: ammaraskar/gcc-problem-matcher@master
 
       - name: Compilation
         uses: ./.github/actions/godot-build
@@ -115,7 +100,7 @@ jobs:
 
       - name: Generate Glue Code
         if: ${{ matrix.cache-name == 'windows-editor-mono' }}
-        run: ./bin/godot.windows.editor.x86_64.mono.exe --headless --generate-mono-glue modules/mono/glue
+        run: ./bin/blazium.windows.editor.x86_64.mono.exe --headless --generate-mono-glue modules/mono/glue
 
       - name: Build GodotSharp
         if: ${{ matrix.cache-name == 'windows-editor-mono' }}
