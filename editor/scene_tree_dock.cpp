@@ -4956,13 +4956,14 @@ SceneTreeDock::SceneTreeDock(Node *p_scene_root, EditorSelection *p_editor_selec
 	color_menu->add_separator();
 
 	for (const KeyValue<String, Color> &E : node_colors) {
-	    int idx = color_menu->add_icon_item(swatch_icon, E.key.capitalize());
-	    color_menu->set_item_icon_modulate(idx, E.value);
-	    color_menu->set_item_metadata(idx, E.key);
+		color_menu->add_icon_item(swatch_icon, E.key.capitalize());
+		int idx = color_menu->get_item_count() - 1;
+
+		color_menu->set_item_icon_modulate(idx, E.value);
+		color_menu->set_item_metadata(idx, E.key);
 	}
 
 	color_menu->connect("id_pressed", callable_mp(this, &SceneTreeDock::_node_color_index_pressed).bind(color_menu));
-
 	clear_inherit_confirm = memnew(ConfirmationDialog);
 	clear_inherit_confirm->set_text(TTR("Clear Inheritance? (No Undo!)"));
 	clear_inherit_confirm->set_ok_button_text(TTR("Clear"));
