@@ -93,6 +93,42 @@ static void _restore_treeitem_custom_color(TreeItem *p_item) {
 	}
 }
 
+void SceneTreeDock::_apply_custom_node_colors() {
+	if (updating_colors || !scene_tree) {
+		return;
+	}
+
+	updating_colors = true;
+
+	Tree *tree = scene_tree->get_scene_tree();
+	TreeItem *root = tree->get_root();
+	if (root) {
+		_apply_colors_recursive(root);
+	}
+
+	updating_colors = false;
+}
+
+void SceneTreeDock::_apply_colors_recursive(TreeItem *p_item) {
+	if (!p_item) {
+		return;
+	}
+
+	NodePath np = p_item->get_metadata(0);
+	if (assigned_node_colors.has(np)) {
+		const String color_name = assigned_node_colors[np];
+		if (node_colors.has(color_name)) {
+			p_item->set_custom_color(0, node_colors[color_name]);
+		}
+	} else {
+		_restore_treeitem_custom_color(p_item);
+	}
+
+	for (int i = 0; i < p_item->get_child_count(); i++) {
+		_apply_colors_recursive(p_item->get_child(i));
+	}
+}
+
 void SceneTreeDock::_inspect_hovered_node() {
 	select_node_hovered_at_end_of_drag = true;
 	Tree *tree = scene_tree->get_scene_tree();
@@ -180,6 +216,8 @@ void SceneTreeDock::shortcut_input(const Ref<InputEvent> &p_event) {
 			return;
 		}
 		_tool_selected(TOOL_RENAME);
+	} else if (ED_IS_SHORTCUT("scene_tree/set_node_color", p_event)) {
+	        _tool_selected(TOOL_SET_NODE_COLOR);
 	} else if (ED_IS_SHORTCUT("scene_tree/batch_rename", p_event)) {
 		_tool_selected(TOOL_BATCH_RENAME);
 	} else if (ED_IS_SHORTCUT("scene_tree/add_child_node", p_event)) {
@@ -3305,6 +3343,12 @@ bool SceneTreeDock::_check_node_recursive(Variant &r_variant, Node *p_node, Node
 
 void SceneTreeDock::set_edited_scene(Node *p_scene) {
 	edited_scene = p_scene;
+	if (edited_scene && edited_scene->has_meta("node_custom_colors")) {
+		assigned_node_colors = edited_scene->get_meta("node_custom_colors");
+		_apply_custom_node_colors();
+	} else {
+		assigned_node_colors.clear();
+	}
 }
 
 static bool _is_same_selection(const Vector<Node *> &p_first, const List<Node *> &p_second) {
@@ -3827,6 +3871,7 @@ void SceneTreeDock::_tree_rmb(const Vector2 &p_menu_pos) {
 
 	if (profile_allow_editing) {
 		menu->add_icon_shortcut(get_editor_theme_icon(SNAME("Rename")), ED_GET_SHORTCUT("scene_tree/rename"), TOOL_RENAME);
+		menu->add_submenu_item(TTR("Set Node Color"), color_menu->get_name(), TOOL_SET_NODE_COLOR);
 
 		bool can_replace = true;
 		for (Node *E : selection) {
@@ -4579,6 +4624,45 @@ void SceneTreeDock::_gather_resources(Node *p_node, List<Pair<Ref<Resource>, Nod
 	}
 }
 
+void SceneTreeDock::_node_color_index_pressed(int p_index, PopupMenu *p_menu) {
+	Variant color_name_var = p_menu->get_item_metadata(p_index);
+	List<Node *> selection = editor_selection->get_selected_node_list();
+
+	Tree *tree = scene_tree->get_scene_tree();
+
+	for (Node *node : selection) {
+		NodePath node_path = node->get_path();
+
+		if (color_name_var) {
+			String color_name = color_name_var;
+			assigned_node_colors[node_path] = color_name;
+
+			TreeItem *item = tree->get_item_with_metadata(node_path);
+			if (item && node_colors.has(color_name)) {
+				item->set_custom_color(0, node_colors[color_name]);
+			}
+		} else {
+			assigned_node_colors.erase(node_path);
+
+			TreeItem *item = tree->get_item_with_metadata(node_path);
+			if (item) {
+				_restore_treeitem_custom_color(item);
+			}
+		}
+	}
+
+	_update_node_colors_setting();
+
+	scene_tree->update_tree();
+	_apply_custom_node_colors();
+}
+
+void SceneTreeDock::_update_node_colors_setting() {
+    if (edited_scene) {
+        edited_scene->set_meta("node_custom_colors", assigned_node_colors);
+    }
+}
+
 void SceneTreeDock::_edit_subresource(int p_idx, const PopupMenu *p_from_menu) {
 	const ObjectID &id = p_from_menu->get_item_metadata(p_idx);
 
@@ -4628,6 +4712,8 @@ SceneTreeDock::SceneTreeDock(Node *p_scene_root, EditorSelection *p_editor_selec
 
 	ED_SHORTCUT("scene_tree/rename", TTRC("Rename"), Key::F2);
 	ED_SHORTCUT_OVERRIDE("scene_tree/rename", "macos", Key::ENTER);
+
+	ED_SHORTCUT("scene_tree/set_node_color", TTRC("Set Node Color"), KeyModifierMask::CMD_OR_CTRL | Key::K);
 
 	ED_SHORTCUT("scene_tree/batch_rename", TTRC("Batch Rename..."), KeyModifierMask::SHIFT | Key::F2);
 	ED_SHORTCUT_OVERRIDE("scene_tree/batch_rename", "macos", KeyModifierMask::SHIFT | Key::ENTER);
@@ -4836,6 +4922,16 @@ SceneTreeDock::SceneTreeDock(Node *p_scene_root, EditorSelection *p_editor_selec
 	add_child(new_scene_from_dialog);
 	new_scene_from_dialog->connect("file_selected", callable_mp(this, &SceneTreeDock::_new_scene_from));
 
+	node_colors["red"]    = Color(1.0, 0.271, 0.271);
+	node_colors["orange"] = Color(1.0, 0.561, 0.271);
+	node_colors["yellow"] = Color(1.0, 0.890, 0.271);
+	node_colors["green"]  = Color(0.502, 1.0, 0.271);
+	node_colors["teal"]   = Color(0.271, 1.0, 0.635);
+	node_colors["blue"]   = Color(0.271, 0.843, 1.0);
+	node_colors["purple"] = Color(0.502, 0.271, 1.0);
+	node_colors["pink"]   = Color(1.0, 0.271, 0.588);
+	node_colors["gray"]   = Color(0.616, 0.616, 0.616);
+
 	menu = memnew(PopupMenu);
 	add_child(menu);
 	menu->connect(SceneStringName(id_pressed), callable_mp(this, &SceneTreeDock::_tool_selected).bind(false));
@@ -4848,6 +4944,25 @@ SceneTreeDock::SceneTreeDock(Node *p_scene_root, EditorSelection *p_editor_selec
 	add_child(menu_properties);
 	menu_properties->connect(SceneStringName(id_pressed), callable_mp(this, &SceneTreeDock::_property_selected));
 
+	color_menu = memnew(PopupMenu);
+	color_menu->set_name("color_menu");
+	menu->add_child(color_menu);
+
+	Ref<Texture2D> swatch_icon = get_editor_theme_icon(SNAME("ColorRect"));
+
+	color_menu->add_icon_item(swatch_icon, TTR("Default (Reset)"));
+	color_menu->set_item_icon_modulate(-1, Color(0.75, 0.75, 0.75, 0.8));
+
+	color_menu->add_separator();
+
+	for (const KeyValue<String, Color> &E : node_colors) {
+	    int idx = color_menu->add_icon_item(swatch_icon, E.key.capitalize());
+	    color_menu->set_item_icon_modulate(idx, E.value);
+	    color_menu->set_item_metadata(idx, E.key);
+	}
+
+	color_menu->connect("id_pressed", callable_mp(this, &SceneTreeDock::_node_color_index_pressed).bind(color_menu));
+
 	clear_inherit_confirm = memnew(ConfirmationDialog);
 	clear_inherit_confirm->set_text(TTR("Clear Inheritance? (No Undo!)"));
 	clear_inherit_confirm->set_ok_button_text(TTR("Clear"));
@@ -4859,6 +4974,10 @@ SceneTreeDock::SceneTreeDock(Node *p_scene_root, EditorSelection *p_editor_selec
 	EDITOR_DEF("_use_favorites_root_selection", false);
 
 	Resource::_update_configuration_warning = _update_configuration_warning;
+
+	if (edited_scene && edited_scene->has_meta("node_custom_colors")) {
+		assigned_node_colors = edited_scene->get_meta("node_custom_colors");
+	}
 }
 
 SceneTreeDock::~SceneTreeDock() {

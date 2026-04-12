@@ -89,6 +89,7 @@ class SceneTreeDock : public VBoxContainer {
 		TOOL_CREATE_FAVORITE,
 		TOOL_CENTER_PARENT,
 		TOOL_HIDE_FILTERED_OUT_PARENTS,
+                TOOL_SET_NODE_COLOR,
 	};
 
 	enum {
@@ -96,6 +97,8 @@ class SceneTreeDock : public VBoxContainer {
 	};
 
 	Vector<ObjectID> subresources;
+	HashMap<String, Color> node_colors;
+	Dictionary assigned_node_colors;
 
 	bool reset_create_dialog = false;
 
@@ -165,6 +168,7 @@ class SceneTreeDock : public VBoxContainer {
 	PopupMenu *menu = nullptr;
 	PopupMenu *menu_subresources = nullptr;
 	PopupMenu *menu_properties = nullptr;
+	PopupMenu *color_menu = nullptr;
 	ConfirmationDialog *clear_inherit_confirm = nullptr;
 
 	bool first_enter = true;
@@ -301,6 +305,12 @@ class SceneTreeDock : public VBoxContainer {
 
 private:
 	static SceneTreeDock *singleton;
+	bool updating_colors = false;
+
+	void _node_color_index_pressed(int p_index, PopupMenu *p_menu);
+	void _update_node_colors_setting();
+	void _apply_custom_node_colors();
+	void _apply_colors_recursive(TreeItem *p_item);
 
 public:
 	static SceneTreeDock *get_singleton() { return singleton; }
