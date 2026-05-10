@@ -87,7 +87,7 @@ static void _restore_treeitem_custom_color(TreeItem *p_item) {
 	}
 	Color custom_color = p_item->get_meta(SNAME("custom_color"), Color(0, 0, 0, 0));
 	if (custom_color != Color(0, 0, 0, 0)) {
-		p_item->set_custom_color(0, custom_color);
+		p_item->set_custom_bg_color(0, custom_color);
 	} else {
 		p_item->clear_custom_color(0);
 	}
@@ -118,7 +118,7 @@ void SceneTreeDock::_apply_colors_recursive(TreeItem *p_item) {
 	if (assigned_node_colors.has(np)) {
 		const String color_name = assigned_node_colors[np];
 		if (node_colors.has(color_name)) {
-			p_item->set_custom_color(0, node_colors[color_name]);
+			p_item->set_custom_bg_color(0, node_colors[color_name]);
 		}
 	} else {
 		_restore_treeitem_custom_color(p_item);
@@ -139,7 +139,7 @@ void SceneTreeDock::_inspect_hovered_node() {
 
 	if (item) {
 		Color accent_color = get_theme_color(SNAME("accent_color"), EditorStringName(Editor));
-		tree_item_inspected->set_custom_color(0, accent_color);
+		tree_item_inspected->set_custom_bg_color(0, accent_color);
 	}
 
 	EditorSelectionHistory *editor_history = EditorNode::get_singleton()->get_editor_selection_history();
@@ -1280,6 +1280,9 @@ void SceneTreeDock::_tool_selected(int p_tool, bool p_confirm_override) {
 		} break;
 		case TOOL_HIDE_FILTERED_OUT_PARENTS: {
 			scene_tree->set_hide_filtered_out_parents(!EDITOR_GET("docks/scene_tree/hide_filtered_out_parents"), true);
+		} break;
+		case TOOL_SET_NODE_COLOR:{
+			_apply_custom_node_colors();
 		} break;
 		case TOOL_SCENE_EDITABLE_CHILDREN: {
 			if (!profile_allow_editing) {
@@ -4639,7 +4642,7 @@ void SceneTreeDock::_node_color_index_pressed(int p_index, PopupMenu *p_menu) {
 
 			TreeItem *item = tree->get_item_with_metadata(node_path);
 			if (item && node_colors.has(color_name)) {
-				item->set_custom_color(0, node_colors[color_name]);
+				item->set_custom_bg_color(0, node_colors[color_name]);
 			}
 		} else {
 			assigned_node_colors.erase(node_path);
